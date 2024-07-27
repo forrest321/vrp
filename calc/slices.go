@@ -1,16 +1,16 @@
 package calc
 
-type Loads []Load
+type LoadsByDepotPickup []Load
 
-func (ls Loads) Len() int {
+func (ls LoadsByDepotPickup) Len() int {
 	return len(ls)
 }
 
-func (ls Loads) Swap(i, j int) {
+func (ls LoadsByDepotPickup) Swap(i, j int) {
 	ls[i], ls[j] = ls[j], ls[i]
 }
 
-func (ls Loads) Less(i, j int) bool {
+func (ls LoadsByDepotPickup) Less(i, j int) bool {
 	return ls[i].Pickup.DistToDepot < ls[j].Pickup.DistToDepot
 }
 
@@ -74,6 +74,6 @@ func (ls LoadsByPickup) Swap(i, j int) {
 func (ls LoadsByPickup) Less(i, j int) bool {
 	var iTotal, jTotal float64
 	iTotal = ls[i].Pickup.DistToDepot + ls[i].Length
-	jTotal = ls[j].Pickup.DistToDepot + ls[j].Length + ls[j].Dropoff.DistToDepot
+	jTotal = ls[j].Pickup.DistToDepot + ls[j].Length
 	return iTotal < jTotal
 }

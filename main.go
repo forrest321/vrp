@@ -8,14 +8,19 @@ import (
 	d "github.com/forrest321/vrp/debug"
 	t "github.com/forrest321/vrp/types"
 	"os"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 var verbose bool = false
+var loadIds []int
 
 func main() {
+	check := false
 	flag.BoolVar(&verbose, "v", false, "verbose output")
+	flag.BoolVar(&check, "c", false, "check solution")
 	flag.Parse()
 	d.SetDebug(verbose)
 	if len(flag.Args()) == 0 {
@@ -27,18 +32,115 @@ func main() {
 		fmt.Println("File not found")
 		os.Exit(1)
 	}
-	d.Out(fmt.Sprintf("Loading problem file: %s", probPath))
 
 	loads, err := extractLoads(probPath)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	d.Out(fmt.Sprintf("Loads: \n%+v", loads))
+
 	sol := c.Solve(loads)
-	for _, s := range sol {
+	if check {
+		checkResult(sol)
+		os.Exit(0)
+	}
+
+	for _, s := range sol.Solution {
 		fmt.Println(s)
 	}
+}
+
+func checkResult(r c.Result) {
+	checkSolution(r.Solution)
+	checkDrivers(r.Drivers)
+}
+
+func checkDrivers(d []c.Driver) {
+	fmt.Printf("Number of drivers: %v\n", len(d))
+	//find driver's driving time
+	for j, dr := range d {
+		fmt.Printf("Checking driver# %v\n", j)
+		var routes []int
+		dist := float64(0)
+		for i, l := range dr.Loads {
+			routes = append(routes, l.Num)
+			if i == 0 {
+				dist += c.Distance(t.Depot, l.Pickup)
+			}
+			dist += c.Distance(l.Dropoff, l.Pickup)
+			if i == len(dr.Loads)-1 {
+				dist += c.Distance(t.Depot, l.Dropoff)
+			}
+		}
+		fmt.Printf("Routes: %v\n", routes)
+		fmt.Printf("Reported driver distance: %v\n", dr.FinalDistance())
+		fmt.Printf("Actual Driver Distance: %v is over limit? %v\n", dist, dist > t.DriverMax)
+	}
+}
+
+func checkSolution(s []string) {
+	fmt.Println("checking solution")
+	fmt.Printf("number of loads: %v\n", len(s))
+	var solIds []int
+	for _, line := range s {
+		line = strings.ReplaceAll(line, "[", "")
+		line = strings.ReplaceAll(line, "]", "")
+		line = strings.ReplaceAll(line, " ", "")
+		line = strings.ReplaceAll(line, "\n", "")
+		ids := strings.Split(line, ",")
+		for _, id := range ids {
+			i, err := strconv.Atoi(id)
+			if err != nil {
+				fmt.Println(err)
+			}
+			solIds = append(solIds, i)
+		}
+	}
+	sort.Ints(solIds)
+	sort.Ints(loadIds)
+	missingFromSolution := missingNumbers(solIds)
+	fmt.Printf("missing from solution ids: %v\n", missingFromSolution)
+	missingFromProblem := missingNumbers(loadIds)
+	fmt.Printf("missing from problem ids: %v\n", missingFromProblem)
+	if slices.Equal(solIds, loadIds) {
+		fmt.Println("Solutions are equal")
+		return
+	}
+	var missingIds []int
+	for _, id := range loadIds {
+		if slices.Index(solIds, id) == -1 {
+			missingIds = append(missingIds, id)
+		}
+	}
+	if len(missingIds) > 0 {
+		fmt.Printf("IDS are missing: %v\n", missingIds)
+		os.Exit(1)
+	}
+}
+
+func missingNumbers(x []int) []int {
+	if len(x) == 0 {
+		return nil
+	}
+
+	var missing []int
+	for i := x[0]; i <= x[len(x)-1]; i++ {
+		if !contains(x, i) {
+			missing = append(missing, i)
+		}
+	}
+
+	return missing
+}
+
+// Helper function to check if a slice contains a given element
+func contains(slice []int, element int) bool {
+	for _, v := range slice {
+		if v == element {
+			return true
+		}
+	}
+	return false
 }
 
 func extractLoads(filePath string) ([]c.Load, error) {
@@ -70,10 +172,8 @@ func extractLoads(filePath string) ([]c.Load, error) {
 		dropoff := extractPoint(r[2])
 		length := c.Distance(dropoff, pickup)
 		loads[i] = c.Load{Num: num, Pickup: pickup, Dropoff: dropoff, Length: length}
-
-		d.Out(fmt.Sprintf("load[%d] = %+v", i, loads[i]))
+		loadIds = append(loadIds, num)
 	}
-
 	return loads, nil
 }
 

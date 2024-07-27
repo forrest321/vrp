@@ -1,6 +1,8 @@
 package debug
 
-import "fmt"
+import (
+	"fmt"
+)
 
 var Debug = false
 
