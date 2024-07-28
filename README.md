@@ -32,3 +32,21 @@ until there are no more loads that will fit into that driver's shift.
 There are different data structures that would facilitate iteratively finding the next nearest load. In the interest of 
 readability and simplicity, a simple slice is enough. Using Go's standard sort package provides a fast, highly optimized 
 ability to sort a slice to find the next nearest load.
+
+## sort.Sort
+By implementing [sort.Interface](https://pkg.go.dev/sort#pkg-overview), use of the sort.Sort package is trivial. The internal sort algorithm is optimized and outperforms 
+other popular sorting algo's, in some cases by order(s) of magnitude. During testing of this solution, sorting by many 
+different parameters were tested, such as start location, load distance, distance to pickup + load distance, and round trip 
+distance. Sorting by the next closest load consistently provided the best mean cost and run time.
+
+## sort.Sort vs slices.SortFunc
+
+According to [Go documentation](https://pkg.go.dev/sort#Sort), "Note: in many situations, the newer slices.SortFunc 
+function is more ergonomic and runs faster [than sort.Sort]."  This did happen to be the case, however the resulting increase 
+of mean cost by $14,799.10 did not justify the decrease in run time by 0.69ms.
+
+|  Sort Method | Mean Cost | Mean Run Time | 
+|--------------| --- | --- |
+|sort.Func | 70757.57101574977 | 1.2691617012023926ms |
+|sort.Sort | 55958.475762225324 | 1.9564032554626465ms |
+
