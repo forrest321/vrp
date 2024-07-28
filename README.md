@@ -65,6 +65,9 @@ An executable named `vrp` or `vrp.exe` will be created. It can be copied anywher
 or `vrp` on Windows. On *nix systems, copying to a location within the `$PATH` allows it to be called without the leading 
 `./`, so just `vrp`.
 ## Installation
+If you just want an executable, go to [the releases page](https://github.com/forrest321/vrp/releases) and download the appropriate 
+file for your system.  
+
 If you have Go installed, you can install vrp directly via:
 ```shell
 go install github.com/forrest321/vrp
