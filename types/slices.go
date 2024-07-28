@@ -1,6 +1,6 @@
 package types
 
-import "github.com/forrest321/vrp/calc"
+import c "github.com/forrest321/vrp/calc"
 
 var currentPosition = Depot
 
@@ -15,8 +15,8 @@ func (ls LoadsByCurrentPosition) Swap(i, j int) {
 }
 
 func (ls LoadsByCurrentPosition) Less(i, j int) bool {
-	iPickupDist := calc.Distance(ls[i].Pickup.X, ls[i].Pickup.Y, currentPosition.X, currentPosition.Y)
-	jPickupDist := calc.Distance(ls[j].Pickup.X, ls[j].Pickup.Y, currentPosition.X, currentPosition.Y)
+	iPickupDist := c.Distance(ls[i].Pickup.X, ls[i].Pickup.Y, currentPosition.X, currentPosition.Y)
+	jPickupDist := c.Distance(ls[j].Pickup.X, ls[j].Pickup.Y, currentPosition.X, currentPosition.Y)
 	return iPickupDist < jPickupDist
 }
 
