@@ -1,11 +1,11 @@
 package routing
 
 import (
+	"cmp"
 	"fmt"
 	c "github.com/forrest321/vrp/calc"
 	t "github.com/forrest321/vrp/types"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -30,20 +30,20 @@ func Solve(remainingLoads []t.Load) []string {
 	var acceptedLoads []t.Load
 	var currentDriver Driver
 	var pickupDist, finalDist, totalDist float64
-	var loads, lba t.LoadsByCurrentPosition
 
 	for len(remainingLoads) > 0 {
 		acceptedLoads = []t.Load{}
 		currentDriver = Driver{CurrentPos: t.Depot}
-		loads = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(currentDriver.CurrentPos)
-		sort.Sort(loads)
+		//loads = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(currentDriver.CurrentPos)
+		//sort.Sort(loads)
+		sortFunc(remainingLoads, currentDriver.CurrentPos)
 
-		currentDriver.AcceptLoad(loads[0])
-		remainingLoads = slices.Delete(loads, 0, 1)
+		currentDriver.AcceptLoad(remainingLoads[0])
+		remainingLoads = slices.Delete(remainingLoads, 0, 1)
 
-		lba = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(currentDriver.CurrentPos)
-		sort.Sort(lba)
-		for _, l := range lba {
+		sortFunc(remainingLoads, currentDriver.CurrentPos)
+
+		for _, l := range remainingLoads {
 			pickupDist = distance(currentDriver.CurrentPos, l.Pickup)
 			finalDist = distance(t.Depot, l.Dropoff)
 			totalDist = pickupDist + l.Length + finalDist + currentDriver.TotalDist
@@ -67,6 +67,23 @@ func Solve(remainingLoads []t.Load) []string {
 	}
 
 	return formatSolution(drivers)
+}
+
+func sortFunc(loads []t.Load, pos t.Point) func() {
+	return func() {
+		slices.SortFunc(loads, func(a, b t.Load) int {
+			aPickupDist := c.Distance(a.Pickup.X, a.Pickup.Y, pos.X, pos.Y)
+			bPickupDist := c.Distance(b.Pickup.X, b.Pickup.Y, pos.X, pos.Y)
+			return cmp.Compare(aPickupDist, bPickupDist)
+			//if n := cmp.Compare(aPickupDist, bPickupDist); n != 0 {
+			//	return n
+			//}
+			//// If pickup distances are equal, order by dropoff distances
+			//aDropoffDist := c.Distance(a.Dropoff.X, a.Dropoff.Y, pos.X, pos.Y)
+			//bDropoffDist := c.Distance(b.Dropoff.X, b.Dropoff.Y, pos.X, pos.Y)
+			//return cmp.Compare(aDropoffDist, bDropoffDist)
+		})
+	}
 }
 
 func formatSolution(drivers []Driver) []string {
