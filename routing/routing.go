@@ -30,22 +30,24 @@ func Solve(remainingLoads []t.Load) []string {
 	var acceptedLoads []t.Load
 	var currentDriver Driver
 	var pickupDist, finalDist, totalDist float64
-	var loads, lba t.LoadsByCurrentPosition
 
-	for len(remainingLoads) > 0 {
+	lbp := t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(t.Depot)
+	sort.Sort(lbp)
+	for len(lbp) > 0 {
 		acceptedLoads = []t.Load{}
 		currentDriver = Driver{CurrentPos: t.Depot}
-		loads = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(currentDriver.CurrentPos)
-		sort.Sort(loads)
 
-		currentDriver.AcceptLoad(loads[0])
-		remainingLoads = slices.Delete(loads, 0, 1)
+		lbp = lbp.SetCurrentPosition(currentDriver.CurrentPos)
+		sort.Sort(lbp)
 
-		lba = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(currentDriver.CurrentPos)
-		sort.Sort(lba)
-		for _, l := range lba {
+		currentDriver.AcceptLoad(lbp[0])
+		lbp = slices.Delete(lbp, 0, 1)
+
+		lbp = lbp.SetCurrentPosition(currentDriver.CurrentPos)
+		sort.Sort(lbp)
+		for _, l := range lbp {
 			pickupDist = distance(currentDriver.CurrentPos, l.Pickup)
-			finalDist = distance(t.Depot, l.Dropoff)
+			finalDist = distance(l.Dropoff, t.Depot)
 			totalDist = pickupDist + l.Length + finalDist + currentDriver.TotalDist
 
 			if totalDist > t.DriverMax {
@@ -57,12 +59,12 @@ func Solve(remainingLoads []t.Load) []string {
 		drivers = append(drivers, currentDriver)
 		for _, l := range acceptedLoads {
 			//remove loads accepted in range above
-			i := slices.Index(remainingLoads, l)
+			i := slices.Index(lbp, l)
 			if i == -1 {
 				//shouldn't happen. if it does, prob panic
 				continue
 			}
-			remainingLoads = slices.Delete(remainingLoads, i, i+1)
+			lbp = slices.Delete(lbp, i, i+1)
 		}
 	}
 
