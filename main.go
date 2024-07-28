@@ -75,6 +75,7 @@ func checkDrivers(d []c.Driver) {
 		fmt.Printf("Routes: %v\n", routes)
 		fmt.Printf("Reported driver distance: %v\n", dr.FinalDistance())
 		fmt.Printf("Actual Driver Distance: %v is over limit? %v\n", dist, dist > t.DriverMax)
+		fmt.Printf("Distances match: %v\n", dist == dr.FinalDistance())
 	}
 }
 
@@ -122,25 +123,16 @@ func missingNumbers(x []int) []int {
 	if len(x) == 0 {
 		return nil
 	}
-
+	sort.Ints(x)
 	var missing []int
+	//assume range is x[0] through x[len(x)-1]
 	for i := x[0]; i <= x[len(x)-1]; i++ {
-		if !contains(x, i) {
+		if _, ok := slices.BinarySearch(x, i); !ok {
 			missing = append(missing, i)
 		}
 	}
 
 	return missing
-}
-
-// Helper function to check if a slice contains a given element
-func contains(slice []int, element int) bool {
-	for _, v := range slice {
-		if v == element {
-			return true
-		}
-	}
-	return false
 }
 
 func extractLoads(filePath string) ([]c.Load, error) {
@@ -200,7 +192,6 @@ func extractPoint(input string) t.Point {
 		return p
 	}
 	p.Y = y
-	p.DistToDepot = c.Distance(t.Depot, p)
 	return p
 }
 
