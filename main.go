@@ -5,140 +5,40 @@ import (
 	"flag"
 	"fmt"
 	c "github.com/forrest321/vrp/calc"
-	d "github.com/forrest321/vrp/debug"
+	r "github.com/forrest321/vrp/routing"
 	t "github.com/forrest321/vrp/types"
 	"os"
-	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
 
-var verbose bool = false
-var loadIds []int
-
 func main() {
-	check := false
-	flag.BoolVar(&verbose, "v", false, "verbose output")
-	flag.BoolVar(&check, "c", false, "check solution")
 	flag.Parse()
-	d.SetDebug(verbose)
+
 	if len(flag.Args()) == 0 {
-		fmt.Println("Usage: vrp [filename.txt]")
-		os.Exit(1)
-	}
-	probPath := flag.Args()[0]
-	if ok, err := checkFile(probPath); !ok || err != nil {
-		fmt.Println("File not found")
-		os.Exit(1)
+		exitWithError(t.UsageMessage, nil)
 	}
 
-	loads, err := extractLoads(probPath)
+	problemPath := flag.Args()[0]
+	if ok, err := checkFile(problemPath); !ok || err != nil {
+		exitWithError(t.NotFoundMessage, err)
+	}
+
+	loads, err := extractLoads(problemPath)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exitWithError(t.DataErrorMessage, err)
 	}
 
-	sol := c.Solve(loads)
-	if check {
-		checkResult(sol)
-		os.Exit(0)
-	}
+	sol := r.Solve(loads)
 
-	for _, s := range sol.Solution {
+	for _, s := range sol {
 		fmt.Println(s)
 	}
 }
 
-func checkResult(r c.Result) {
-	checkSolution(r.Solution)
-	checkDrivers(r.Drivers)
-}
-
-func checkDrivers(d []c.Driver) {
-	fmt.Printf("Number of drivers: %v\n", len(d))
-	//find driver's driving time
-	for j, dr := range d {
-		fmt.Printf("Checking driver# %v\n", j)
-		var routes []int
-		dist := float64(0)
-		for i, l := range dr.Loads {
-			routes = append(routes, l.Num)
-			if i == 0 {
-				dist += c.Distance(t.Depot, l.Pickup)
-			}
-			dist += c.Distance(l.Dropoff, l.Pickup)
-			if i == len(dr.Loads)-1 {
-				dist += c.Distance(t.Depot, l.Dropoff)
-			}
-		}
-		fmt.Printf("Routes: %v\n", routes)
-		fmt.Printf("Reported driver distance: %v\n", dr.FinalDistance())
-		fmt.Printf("Actual Driver Distance: %v is over limit? %v\n", dist, dist > t.DriverMax)
-		fmt.Printf("Distances match: %v\n", dist == dr.FinalDistance())
-	}
-}
-
-func checkSolution(s []string) {
-	fmt.Println("checking solution")
-	fmt.Printf("number of loads: %v\n", len(s))
-	var solIds []int
-	for _, line := range s {
-		line = strings.ReplaceAll(line, "[", "")
-		line = strings.ReplaceAll(line, "]", "")
-		line = strings.ReplaceAll(line, " ", "")
-		line = strings.ReplaceAll(line, "\n", "")
-		ids := strings.Split(line, ",")
-		for _, id := range ids {
-			i, err := strconv.Atoi(id)
-			if err != nil {
-				fmt.Println(err)
-			}
-			solIds = append(solIds, i)
-		}
-	}
-	sort.Ints(solIds)
-	sort.Ints(loadIds)
-	missingFromSolution := missingNumbers(solIds)
-	fmt.Printf("missing from solution ids: %v\n", missingFromSolution)
-	missingFromProblem := missingNumbers(loadIds)
-	fmt.Printf("missing from problem ids: %v\n", missingFromProblem)
-	if slices.Equal(solIds, loadIds) {
-		fmt.Println("Solutions are equal")
-		return
-	}
-	var missingIds []int
-	for _, id := range loadIds {
-		if slices.Index(solIds, id) == -1 {
-			missingIds = append(missingIds, id)
-		}
-	}
-	if len(missingIds) > 0 {
-		fmt.Printf("IDS are missing: %v\n", missingIds)
-		os.Exit(1)
-	}
-}
-
-func missingNumbers(x []int) []int {
-	if len(x) == 0 {
-		return nil
-	}
-	sort.Ints(x)
-	var missing []int
-	//assume range is x[0] through x[len(x)-1]
-	for i := x[0]; i <= x[len(x)-1]; i++ {
-		if _, ok := slices.BinarySearch(x, i); !ok {
-			missing = append(missing, i)
-		}
-	}
-
-	return missing
-}
-
-func extractLoads(filePath string) ([]c.Load, error) {
+func extractLoads(filePath string) ([]t.Load, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		d.Out(fmt.Sprintf("Error opening file: %s", err))
 		return nil, err
 	}
 	defer file.Close()
@@ -147,60 +47,63 @@ func extractLoads(filePath string) ([]c.Load, error) {
 	csvReader.Comma = ' '
 	records, err := csvReader.ReadAll()
 	if err != nil {
-		d.Out(fmt.Sprintf("Error reading csv: %s", err))
 		return nil, err
 	}
-	if records[0][0] == "loadNumber" {
+	if records[0][0] == t.FirstHeaderField {
 		records = records[1:]
 	}
-	loads := make([]c.Load, len(records))
-	for i, r := range records {
-		num, err := strconv.Atoi(r[0])
+	loads := make([]t.Load, len(records))
+	for i, rr := range records {
+		num, err := strconv.Atoi(rr[0])
 		if err != nil {
-			//how to handle?
-			continue
+			//no load num. data issue
+			return nil, fmt.Errorf("%s %v, %w", t.ExtractLoadsErrorMessage, rr, err)
 		}
-		pickup := extractPoint(r[1])
-		dropoff := extractPoint(r[2])
-		length := c.Distance(dropoff, pickup)
-		loads[i] = c.Load{Num: num, Pickup: pickup, Dropoff: dropoff, Length: length}
-		loadIds = append(loadIds, num)
+		pickup, err := extractPoint(rr[1])
+		if err != nil {
+			return nil, err
+		}
+		dropoff, err := extractPoint(rr[2])
+		if err != nil {
+			return nil, err
+		}
+		length := c.Distance(dropoff.X, dropoff.Y, pickup.X, pickup.Y)
+		loads[i] = t.Load{Num: num, Pickup: pickup, Dropoff: dropoff, Length: length}
 	}
 	return loads, nil
 }
 
-func extractPoint(input string) t.Point {
+func extractPoint(input string) (t.Point, error) {
 	var p t.Point
 	input = strings.ReplaceAll(input, "(", "")
 	input = strings.ReplaceAll(input, ")", "")
 	xy := strings.Split(input, ",")
 	x, err := strconv.ParseFloat(xy[0], 64)
 	if err != nil {
-		//how to handle?
-		if verbose {
-			fmt.Println("Error converting input to float: ", err)
-		}
-		return p
+		return p, fmt.Errorf("%s %v, %w", t.ExtractPointErrorMessage, xy[0], err)
 	}
 	p.X = x
 	y, err := strconv.ParseFloat(xy[1], 64)
 	if err != nil {
-		//how to handle?
-		if verbose {
-			fmt.Println("Error converting input to float: ", err)
-		}
-		return p
+		return p, fmt.Errorf("%s %v, %w", t.ExtractPointErrorMessage, xy[1], err)
 	}
 	p.Y = y
-	return p
+	return p, nil
 }
 
 func checkFile(filename string) (bool, error) {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		if verbose {
-			fmt.Println("File not found: ", filename)
-		}
 		return false, err
 	}
 	return true, nil
+}
+
+func exitWithError(msg string, err error) {
+	if len(msg) > 0 {
+		fmt.Println(msg)
+	}
+	if err != nil {
+		fmt.Println(err)
+	}
+	os.Exit(1)
 }

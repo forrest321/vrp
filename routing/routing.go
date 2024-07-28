@@ -1,8 +1,8 @@
-package calc
+package routing
 
 import (
 	"fmt"
-	d "github.com/forrest321/vrp/debug"
+	c "github.com/forrest321/vrp/calc"
 	t "github.com/forrest321/vrp/types"
 	"slices"
 	"sort"
@@ -10,19 +10,10 @@ import (
 	"strings"
 )
 
-type Result struct {
-	Solution []string
-	Drivers  []Driver
-}
+type Driver t.Driver
 
-type Driver struct {
-	Loads      []Load
-	TotalDist  float64
-	CurrentPos t.Point
-}
-
-func (d *Driver) AcceptLoad(pickup t.Point, l Load) {
-	d.TotalDist += Distance(pickup, l.Pickup) + Distance(l.Pickup, l.Dropoff)
+func (d *Driver) AcceptLoad(l t.Load) {
+	d.TotalDist += distance(d.CurrentPos, l.Pickup) + distance(l.Pickup, l.Dropoff)
 	d.Loads = append(d.Loads, l)
 	d.CurrentPos = l.Dropoff
 }
@@ -31,52 +22,36 @@ func (d *Driver) FinalDistance() float64 {
 	if len(d.Loads) == 0 {
 		return 0
 	}
-	return d.TotalDist + Distance(d.Loads[len(d.Loads)-1].Dropoff, t.Depot)
+	return d.TotalDist + distance(d.Loads[len(d.Loads)-1].Dropoff, t.Depot)
 }
 
-type Load struct {
-	Num     int
-	Pickup  t.Point
-	Dropoff t.Point
-	Length  float64
-}
-
-var currentPosition = t.Depot
-
-func Solve(remainingLoads []Load) Result {
+func Solve(remainingLoads []t.Load) []string {
 	var drivers []Driver
-	var acceptedLoads []Load
+	var acceptedLoads []t.Load
 	var currentDriver Driver
 	var pickupDist, finalDist, totalDist float64
-	var loads, lba LoadsByCurrentPosition
+	var loads, lba t.LoadsByCurrentPosition
+
 	for len(remainingLoads) > 0 {
-		acceptedLoads = []Load{}
+		acceptedLoads = []t.Load{}
 		currentDriver = Driver{CurrentPos: t.Depot}
-		currentPosition = t.Depot
-		loads = remainingLoads
+		loads = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(currentDriver.CurrentPos)
 		sort.Sort(loads)
 
-		acceptLoad(&currentDriver, loads[0])
+		currentDriver.AcceptLoad(loads[0])
 		remainingLoads = slices.Delete(loads, 0, 1)
 
-		if len(remainingLoads) == 0 {
-			//could continue through and exit normally, but why wait?
-			drivers = append(drivers, currentDriver)
-			break
-		}
-		lba = remainingLoads
+		lba = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(currentDriver.CurrentPos)
 		sort.Sort(lba)
 		for _, l := range lba {
-			pickupDist = Distance(currentPosition, l.Pickup)
-			finalDist = Distance(t.Depot, l.Dropoff)
+			pickupDist = distance(currentDriver.CurrentPos, l.Pickup)
+			finalDist = distance(t.Depot, l.Dropoff)
 			totalDist = pickupDist + l.Length + finalDist + currentDriver.TotalDist
 
-			d.Out(fmt.Sprintf("Distance if accepting next load: %v", totalDist))
 			if totalDist > t.DriverMax {
-				d.Out("rejecting load")
 				continue
 			}
-			acceptLoad(&currentDriver, l)
+			currentDriver.AcceptLoad(l)
 			acceptedLoads = append(acceptedLoads, l)
 		}
 		drivers = append(drivers, currentDriver)
@@ -91,12 +66,7 @@ func Solve(remainingLoads []Load) Result {
 		}
 	}
 
-	return Result{Solution: formatSolution(drivers), Drivers: drivers}
-}
-
-func acceptLoad(dr *Driver, l Load) {
-	dr.AcceptLoad(currentPosition, l)
-	currentPosition = l.Dropoff
+	return formatSolution(drivers)
 }
 
 func formatSolution(drivers []Driver) []string {
@@ -110,4 +80,8 @@ func formatSolution(drivers []Driver) []string {
 		solution = append(solution, solLine)
 	}
 	return solution
+}
+
+func distance(p1, p2 t.Point) float64 {
+	return c.Distance(p1.X, p1.Y, p2.X, p2.Y)
 }
