@@ -44,10 +44,10 @@ According to [Go documentation](https://pkg.go.dev/sort#Sort), "in many situatio
 function is more ergonomic and runs faster [than sort.Sort]."  This did happen to be the case, however the resulting increase 
 of mean cost by $14,799.10 did not justify the decrease in run time by 0.69ms.
 
-|  Sort Method | Mean Cost | Mean Run Time | 
-|--------------| --- | --- |
-|sort.Func | 70757.57101574977 | 1.2691617012023926ms |
-|sort.Sort | 55958.475762225324 | 1.9564032554626465ms |
+| Sort Method     | Mean Cost | Mean Run Time | 
+|-----------------| --- | --- |
+| slices.SortFunc | 70757.57101574977 | 1.2691617012023926ms |
+| sort.Sort       | 55958.475762225324 | 1.9564032554626465ms |
 
 # Usage
 ## Download the source:
