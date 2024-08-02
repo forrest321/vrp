@@ -25,60 +25,70 @@ func (d *Driver) FinalDistance() float64 {
 	return d.TotalDist + distance(d.Loads[len(d.Loads)-1].Dropoff, t.Depot)
 }
 
-func Solve(remainingLoads []t.Load) []string {
-	var drivers []Driver
-	var acceptedLoads []t.Load
-	var currentDriver Driver
-	var pickupDist, finalDist, totalDist float64
+func (d *Driver) CanAcceptLoad(l t.Load) bool {
+	pickupDist := distance(d.CurrentPos, l.Pickup)
+	dropoffDist := distance(l.Dropoff, t.Depot)
+	if pickupDist+l.Length+dropoffDist+d.TotalDist <= t.DriverMax {
+		return true
+	}
+	return false
+}
 
-	lbp := t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(t.Depot)
+func Solve(remainingLoads []t.Load) []string {
+	var drivers []*Driver
+	var currentDriver *Driver
+	var driverIsDone = false
+	var lbp t.LoadsByCurrentPosition
+
+	lbp = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(t.Depot)
 	sort.Sort(lbp)
 	for len(lbp) > 0 {
-		acceptedLoads = []t.Load{}
-		currentDriver = Driver{CurrentPos: t.Depot}
-
-		lbp = lbp.SetCurrentPosition(currentDriver.CurrentPos)
-		sort.Sort(lbp)
-
-		currentDriver.AcceptLoad(lbp[0])
-		lbp = slices.Delete(lbp, 0, 1)
-
-		lbp = lbp.SetCurrentPosition(currentDriver.CurrentPos)
-		sort.Sort(lbp)
-		for _, l := range lbp {
-			pickupDist = distance(currentDriver.CurrentPos, l.Pickup)
-			finalDist = distance(l.Dropoff, t.Depot)
-			totalDist = pickupDist + l.Length + finalDist + currentDriver.TotalDist
-
-			if totalDist > t.DriverMax {
-				continue
-			}
-			currentDriver.AcceptLoad(l)
-			acceptedLoads = append(acceptedLoads, l)
-		}
+		currentDriver = &Driver{CurrentPos: t.Depot}
 		drivers = append(drivers, currentDriver)
-		for _, l := range acceptedLoads {
-			//remove loads accepted in range above
-			i := slices.Index(lbp, l)
-			if i == -1 {
-				//shouldn't happen. if it does, prob panic
-				continue
+		driverIsDone = false
+
+		for !driverIsDone {
+			lbp = lbp.SetCurrentPosition(currentDriver.CurrentPos)
+			sort.Sort(lbp)
+
+			for i, l := range lbp {
+				if currentDriver.CanAcceptLoad(l) {
+					currentDriver.AcceptLoad(l)
+					break
+				}
+				if i == len(lbp)-1 {
+					driverIsDone = true
+				}
 			}
-			lbp = slices.Delete(lbp, i, i+1)
+			lbp = removeLoads(lbp, currentDriver.Loads)
+			if len(lbp) == 0 {
+				driverIsDone = true
+			}
 		}
 	}
 
 	return formatSolution(drivers)
 }
 
-func formatSolution(drivers []Driver) []string {
-	var solution []string
+func removeLoads(loads, toRemove []t.Load) []t.Load {
+	var remainingLoads []t.Load
+	for _, load := range loads {
+		if !slices.Contains(toRemove, load) {
+			remainingLoads = append(remainingLoads, load)
+		}
+	}
+	return remainingLoads
+}
+
+func formatSolution(drivers []*Driver) []string {
+	var solution, innerArr []string
+	var solLine string
 	for _, dr := range drivers {
-		innerArr := make([]string, len(dr.Loads))
+		innerArr = make([]string, len(dr.Loads))
 		for i, l := range dr.Loads {
 			innerArr[i] = strconv.Itoa(l.Num)
 		}
-		solLine := fmt.Sprintf("[%s]", strings.Join(innerArr, ", "))
+		solLine = fmt.Sprintf("[%s]", strings.Join(innerArr, ", "))
 		solution = append(solution, solLine)
 	}
 	return solution

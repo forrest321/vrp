@@ -1,0 +1,374 @@
+.
+├── calc
+│   └── calculations.go
+├── dist
+│   ├── artifacts.json
+│   ├── CHANGELOG.md
+│   ├── config.yaml
+│   ├── metadata.json
+│   ├── vrp_0.1.2_checksums.txt
+│   ├── vrp_darwin_amd64_v1
+│   │   └── vrp
+│   ├── vrp_darwin_arm64
+│   │   └── vrp
+│   ├── vrp_Darwin_arm64.tar.gz
+│   ├── vrp_Darwin_x86_64.tar.gz
+│   ├── vrp_linux_386
+│   │   └── vrp
+│   ├── vrp_linux_amd64_v1
+│   │   └── vrp
+│   ├── vrp_linux_arm64
+│   │   └── vrp
+│   ├── vrp_Linux_arm64.tar.gz
+│   ├── vrp_Linux_i386.tar.gz
+│   ├── vrp_Linux_x86_64.tar.gz
+│   ├── vrp_windows_386
+│   │   └── vrp.exe
+│   ├── vrp_windows_amd64_v1
+│   │   └── vrp.exe
+│   ├── vrp_windows_arm64
+│   │   └── vrp.exe
+│   ├── vrp_Windows_arm64.zip
+│   ├── vrp_Windows_i386.zip
+│   └── vrp_Windows_x86_64.zip
+├── go.mod
+├── main.go
+├── problems
+│   ├── problem10.txt
+│   ├── problem11.txt
+│   ├── problem12.txt
+│   ├── problem13.txt
+│   ├── problem14.txt
+│   ├── problem15.txt
+│   ├── problem16.txt
+│   ├── problem17.txt
+│   ├── problem18.txt
+│   ├── problem19.txt
+│   ├── problem1.txt
+│   ├── problem20.txt
+│   ├── problem2.txt
+│   ├── problem3.txt
+│   ├── problem4.txt
+│   ├── problem5.txt
+│   ├── problem6.txt
+│   ├── problem7.txt
+│   ├── problem8.txt
+│   └── problem9.txt
+├── README.md
+├── routing
+│   └── routing.go
+├── types
+│   ├── slices.go
+│   ├── types.go
+│   └── vals.go
+└── vrp
+
+13 directories, 50 files
+File: calc/calculations.go
+Lines: 12
+-----BEGIN calc/calculations.go-----
+package calc
+
+import (
+	"math"
+)
+
+func Distance(x1, y1, x2, y2 float64) float64 {
+	//(x1, y1) to (x2, y2) takes sqrt((x2-x1)^2 + (y2-y1)^2)
+	dx := x2 - x1
+	dy := y2 - y1
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
+-----END calc/calculations.go-----
+
+File: main.go
+Lines: 109
+-----BEGIN main.go-----
+package main
+
+import (
+	"encoding/csv"
+	"flag"
+	"fmt"
+	c "github.com/forrest321/vrp/calc"
+	r "github.com/forrest321/vrp/routing"
+	t "github.com/forrest321/vrp/types"
+	"os"
+	"strconv"
+	"strings"
+)
+
+func main() {
+	flag.Parse()
+
+	if len(flag.Args()) == 0 {
+		exitWithError(t.UsageMessage, nil)
+	}
+
+	problemPath := flag.Args()[0]
+	if ok, err := checkFile(problemPath); !ok || err != nil {
+		exitWithError(t.NotFoundMessage, err)
+	}
+
+	loads, err := extractLoads(problemPath)
+	if err != nil {
+		exitWithError(t.DataErrorMessage, err)
+	}
+
+	sol := r.Solve(loads)
+
+	for _, s := range sol {
+		fmt.Println(s)
+	}
+}
+
+func extractLoads(filePath string) ([]t.Load, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	csvReader := csv.NewReader(file)
+	csvReader.Comma = ' '
+	records, err := csvReader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if records[0][0] == t.FirstHeaderField {
+		records = records[1:]
+	}
+	loads := make([]t.Load, len(records))
+	for i, rr := range records {
+		num, err := strconv.Atoi(rr[0])
+		if err != nil {
+			//no load num. data issue
+			return nil, fmt.Errorf("%s %v, %w", t.ExtractLoadsErrorMessage, rr, err)
+		}
+		pickup, err := extractPoint(rr[1])
+		if err != nil {
+			return nil, err
+		}
+		dropoff, err := extractPoint(rr[2])
+		if err != nil {
+			return nil, err
+		}
+		length := c.Distance(dropoff.X, dropoff.Y, pickup.X, pickup.Y)
+		loads[i] = t.Load{Num: num, Pickup: pickup, Dropoff: dropoff, Length: length}
+	}
+	return loads, nil
+}
+
+func extractPoint(input string) (t.Point, error) {
+	var p t.Point
+	input = strings.ReplaceAll(input, "(", "")
+	input = strings.ReplaceAll(input, ")", "")
+	xy := strings.Split(input, ",")
+	x, err := strconv.ParseFloat(xy[0], 64)
+	if err != nil {
+		return p, fmt.Errorf("%s %v, %w", t.ExtractPointErrorMessage, xy[0], err)
+	}
+	p.X = x
+	y, err := strconv.ParseFloat(xy[1], 64)
+	if err != nil {
+		return p, fmt.Errorf("%s %v, %w", t.ExtractPointErrorMessage, xy[1], err)
+	}
+	p.Y = y
+	return p, nil
+}
+
+func checkFile(filename string) (bool, error) {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return false, err
+	}
+	return true, nil
+}
+
+func exitWithError(msg string, err error) {
+	if len(msg) > 0 {
+		fmt.Println(msg)
+	}
+	if err != nil {
+		fmt.Println(err)
+	}
+	os.Exit(1)
+}
+
+-----END main.go-----
+
+File: routing/routing.go
+Lines: 95
+-----BEGIN routing/routing.go-----
+package routing
+
+import (
+	"fmt"
+	c "github.com/forrest321/vrp/calc"
+	t "github.com/forrest321/vrp/types"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+type Driver t.Driver
+
+func (d *Driver) AcceptLoad(l t.Load) {
+	d.TotalDist += distance(d.CurrentPos, l.Pickup) + distance(l.Pickup, l.Dropoff)
+	d.Loads = append(d.Loads, l)
+	d.CurrentPos = l.Dropoff
+}
+
+func (d *Driver) FinalDistance() float64 {
+	if len(d.Loads) == 0 {
+		return 0
+	}
+	return d.TotalDist + distance(d.Loads[len(d.Loads)-1].Dropoff, t.Depot)
+}
+
+func buildRoutes(dr *Driver, l []t.Load) {
+	if len(l) == 0 {
+		return
+	}
+	if l[0].Num == 9 || l[0].Num == 37 {
+		fmt.Println("break time!")
+	}
+	lbp := t.LoadsByCurrentPosition(l).SetCurrentPosition(dr.CurrentPos)
+	var pickupDist, finalDist, totalDist float64
+	for i, ll := range lbp {
+		pickupDist = distance(dr.CurrentPos, ll.Pickup)
+		finalDist = distance(ll.Dropoff, t.Depot)
+		totalDist = pickupDist + ll.Length + finalDist + dr.TotalDist
+		if totalDist <= t.DriverMax {
+			dr.AcceptLoad(ll)
+			break
+		}
+		if i == len(lbp)-1 {
+			return
+		}
+	}
+	if len(dr.Loads) > 0 {
+		lbp = removeLoads(lbp, dr)
+	}
+	buildRoutes(dr, lbp)
+}
+
+func removeLoads(ls []t.Load, dr *Driver) []t.Load {
+	for _, l := range dr.Loads {
+		if i := slices.Index(ls, l); i >= 0 {
+			ls = append(ls[:i], ls[i+1:]...)
+		}
+	}
+	return ls
+}
+
+func Solve(remainingLoads []t.Load) []string {
+	var drivers []*Driver
+	var currentDriver *Driver
+
+	lbp := t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(t.Depot)
+	sort.Sort(lbp)
+	for len(lbp) > 0 {
+		currentDriver = &Driver{CurrentPos: t.Depot}
+		drivers = append(drivers, currentDriver)
+		buildRoutes(currentDriver, lbp)
+		lbp = removeLoads(lbp, currentDriver)
+	}
+
+	return formatSolution(drivers)
+}
+
+func formatSolution(drivers []*Driver) []string {
+	var solution []string
+	for _, dr := range drivers {
+		innerArr := make([]string, len(dr.Loads))
+		for i, l := range dr.Loads {
+			innerArr[i] = strconv.Itoa(l.Num)
+		}
+		solLine := fmt.Sprintf("[%s]", strings.Join(innerArr, ", "))
+		solution = append(solution, solLine)
+	}
+	return solution
+}
+
+func distance(p1, p2 t.Point) float64 {
+	return c.Distance(p1.X, p1.Y, p2.X, p2.Y)
+}
+
+-----END routing/routing.go-----
+
+File: types/slices.go
+Lines: 26
+-----BEGIN types/slices.go-----
+package types
+
+import c "github.com/forrest321/vrp/calc"
+
+var currentPosition = Depot
+
+type LoadsByCurrentPosition []Load
+
+func (ls LoadsByCurrentPosition) Len() int {
+	return len(ls)
+}
+
+func (ls LoadsByCurrentPosition) Swap(i, j int) {
+	ls[i], ls[j] = ls[j], ls[i]
+}
+
+func (ls LoadsByCurrentPosition) Less(i, j int) bool {
+	iPickupDist := c.Distance(ls[i].Pickup.X, ls[i].Pickup.Y, currentPosition.X, currentPosition.Y)
+	jPickupDist := c.Distance(ls[j].Pickup.X, ls[j].Pickup.Y, currentPosition.X, currentPosition.Y)
+	return iPickupDist < jPickupDist
+}
+
+func (ls LoadsByCurrentPosition) SetCurrentPosition(p Point) LoadsByCurrentPosition {
+	currentPosition = p
+	return ls
+}
+
+-----END types/slices.go-----
+
+File: types/types.go
+Lines: 18
+-----BEGIN types/types.go-----
+package types
+
+type Point struct {
+	X, Y float64
+}
+
+type Driver struct {
+	Loads      []Load
+	TotalDist  float64
+	CurrentPos Point
+}
+
+type Load struct {
+	Num     int
+	Pickup  Point
+	Dropoff Point
+	Length  float64
+}
+
+-----END types/types.go-----
+
+File: types/vals.go
+Lines: 12
+-----BEGIN types/vals.go-----
+package types
+
+var Depot = Point{X: 0, Y: 0}
+
+const DriverMax = float64(60 * 12)
+const UsageMessage = "Usage: vrp /path/to/filename.txt"
+const NotFoundMessage = "File not found"
+const DataErrorMessage = "Data error"
+const ExtractLoadsErrorMessage = "extractLoads error parsing record:"
+const ExtractPointErrorMessage = "extractPoint error parsing point:"
+
+const FirstHeaderField = "loadNumber"
+
+-----END types/vals.go-----
+
