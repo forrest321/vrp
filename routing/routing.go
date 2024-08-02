@@ -38,10 +38,10 @@ func Solve(remainingLoads []t.Load) []string {
 	var drivers []*Driver
 	var currentDriver *Driver
 	var driverIsDone = false
-	var lbp t.LoadsByCurrentPosition
+	var lbp, acceptedLoads t.LoadsByCurrentPosition
 
-	lbp = t.LoadsByCurrentPosition(remainingLoads).SetCurrentPosition(t.Depot)
-	sort.Sort(lbp)
+	lbp = remainingLoads
+
 	for len(lbp) > 0 {
 		currentDriver = &Driver{CurrentPos: t.Depot}
 		drivers = append(drivers, currentDriver)
@@ -50,17 +50,19 @@ func Solve(remainingLoads []t.Load) []string {
 		for !driverIsDone {
 			lbp = lbp.SetCurrentPosition(currentDriver.CurrentPos)
 			sort.Sort(lbp)
+			acceptedLoads = []t.Load{}
 
 			for i, l := range lbp {
 				if currentDriver.CanAcceptLoad(l) {
 					currentDriver.AcceptLoad(l)
+					acceptedLoads = append(acceptedLoads, l)
 					break
 				}
 				if i == len(lbp)-1 {
 					driverIsDone = true
 				}
 			}
-			lbp = removeLoads(lbp, currentDriver.Loads)
+			lbp = removeLoads(lbp, acceptedLoads)
 			if len(lbp) == 0 {
 				driverIsDone = true
 			}
