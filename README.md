@@ -87,8 +87,8 @@ go build
 ```
 If everything worked, you should see the outputted routes:
 ```shell
-[1, 4, 10]
-[8, 2, 5]
+[1, 4, 5, 8]
+[10, 2]
 [7]
 [6]
 [3]
