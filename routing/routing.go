@@ -4,7 +4,6 @@ import (
 	"fmt"
 	c "github.com/forrest321/vrp/calc"
 	t "github.com/forrest321/vrp/types"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -38,7 +37,8 @@ func Solve(remainingLoads []t.Load) []string {
 	var drivers []*Driver
 	var currentDriver *Driver
 	var driverIsDone = false
-	var lbp, acceptedLoads t.LoadsByCurrentPosition
+	var lbp t.LoadsByCurrentPosition
+	var acceptedLoad t.Load
 
 	lbp = remainingLoads
 
@@ -50,19 +50,21 @@ func Solve(remainingLoads []t.Load) []string {
 		for !driverIsDone {
 			lbp = lbp.SetCurrentPosition(currentDriver.CurrentPos)
 			sort.Sort(lbp)
-			acceptedLoads = []t.Load{}
+			acceptedLoad = t.Load{}
 
 			for i, l := range lbp {
 				if currentDriver.CanAcceptLoad(l) {
 					currentDriver.AcceptLoad(l)
-					acceptedLoads = append(acceptedLoads, l)
+					acceptedLoad = l
 					break
 				}
 				if i == len(lbp)-1 {
 					driverIsDone = true
 				}
 			}
-			lbp = removeLoads(lbp, acceptedLoads)
+			if acceptedLoad.Num != 0 {
+				lbp = removeLoad(lbp, acceptedLoad)
+			}
 			if len(lbp) == 0 {
 				driverIsDone = true
 			}
@@ -72,10 +74,10 @@ func Solve(remainingLoads []t.Load) []string {
 	return formatSolution(drivers)
 }
 
-func removeLoads(loads, toRemove []t.Load) []t.Load {
+func removeLoad(loads []t.Load, toRemove t.Load) []t.Load {
 	var remainingLoads []t.Load
 	for _, load := range loads {
-		if !slices.Contains(toRemove, load) {
+		if load.Num != toRemove.Num {
 			remainingLoads = append(remainingLoads, load)
 		}
 	}
